@@ -1,51 +1,75 @@
 // models/transaction.ts
-import mongoose, { Document, ObjectId, Schema } from "mongoose";
+import mongoose, { Document, Schema, Types } from "mongoose";
 
-// Interface for Transaction
 export interface Item {
-    title: string;
-    price: number;   // price in INR, e.g., 188 means ₹188
-    quantity: number;
+  title: string;
+  price: number;
+  quantity: number;
 }
 
-export interface Transaction extends Document {
-    fromUser: ObjectId;       // sender
-    toUser: ObjectId;
-    description: string;
-    total: number;      // total amount in INR
-    date: Date; 
-    business: string;
-    items: Item[];
-    paymentMethod?: "CASH" | "CARD" | "UPI" | "OTHER";
-    status?: "PENDING" | "PAID" | "FAILED";
+export interface ITransaction extends Document {
+  fromUser: {
+    _id: Types.ObjectId;
+    name: string;
+    email: string;
+  };
+  toUser: {
+    _id: Types.ObjectId;
+    name: string;
+    email: string;
+  };
+  description: string;
+  total: number;
+  date: Date;
+  business: string;
+  items: Item[];
+  paymentMethod?: "CASH" | "CARD" | "UPI" | "OTHER";
+  status?: "PENDING" | "PAID" | "FAILED";
+  itemCount: number;
 }
 
-// Mongoose Schema
-const TransactionSchema: Schema<Transaction> = new Schema({
-    fromUser: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    toUser: { type: Schema.Types.ObjectId, ref: "User", required: true },
+const TransactionSchema: Schema<ITransaction> = new Schema(
+  {
+    fromUser: {
+      _id: { type: Schema.Types.ObjectId, required: true },
+      name: { type: String, required: true },
+      email: { type: String, required: true },
+    },
+    toUser: {
+      _id: { type: Schema.Types.ObjectId, required: true },
+      name: { type: String, required: true },
+      email: { type: String, required: true },
+    },
     description: { type: String, required: true },
-    total: { type: Number, required: true }, // store amount in INR
-    date: { type: Date, required: true, default: Date.now }, 
+    total: { type: Number, required: true },
+    date: { type: Date, default: Date.now },
     business: { type: String, required: true },
     items: [
-        {
-            title: { type: String, required: true },
-            price: { type: Number, required: true },
-            quantity: { type: Number, required: true },
-        },
+      {
+        title: { type: String, required: true },
+        price: { type: Number, required: true },
+        quantity: { type: Number, required: true },
+      },
     ],
     paymentMethod: {
-        type: String,
-        enum: ["CASH", "CARD", "UPI", "OTHER"],
-        default: "CASH"
+      type: String,
+      enum: ["CASH", "CARD", "UPI", "OTHER"],
+      default: "CASH",
     },
     status: {
-        type: String,
-        enum: ["PENDING", "PAID", "FAILED"],
-        default: "PENDING"
+      type: String,
+      enum: ["PENDING", "PAID", "FAILED"],
+      default: "PENDING",
     },
-});
+    itemCount: { type: Number, default: function () { return this.items.length; } },
+  },
+  { timestamps: true }
+);
 
-// Export the model
-export default mongoose.model<Transaction>("Transaction", TransactionSchema);
+// Indexes for faster queries
+TransactionSchema.index({ "fromUser._id": 1 });
+TransactionSchema.index({ "toUser._id": 1 });
+TransactionSchema.index({ date: -1 });
+TransactionSchema.index({ status: 1 });
+
+export default mongoose.model<ITransaction>("Transaction", TransactionSchema);
