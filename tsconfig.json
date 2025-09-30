@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    /* File Layout */
+    "rootDir": "./src",                 
+    "outDir": "./dist",                 
+
+    /* Environment Settings */
+    "module": "commonjs",               // Works best with Node.js
+    "target": "ES6",                    // Transpile to ES6 JS
+    "lib": ["ESNext"],                  // Latest JS features
+    "types": ["node", "express"],       // Add Node + Express types
+
+    /* Outputs */
+    "sourceMap": true,                  
+    "declaration": true,                
+    "declarationMap": true,             
+
+    /* Type Checking */
+    "strict": true,                     
+    "noUncheckedIndexedAccess": true,   
+    "exactOptionalPropertyTypes": true, 
+
+    /* Performance */
+    "skipLibCheck": true,               
+
+    /* Module Resolution */
+    "esModuleInterop": true,            
+    "forceConsistentCasingInFileNames": true 
+  },
+  "include": ["src"],                   
+  "exclude": ["node_modules", "dist"]   
+}
