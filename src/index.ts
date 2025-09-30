@@ -8,6 +8,7 @@ import adminRouter from "./routes/admin";
 import cors from "cors";
 import logger from "./lib/logger";
 import { requestLogger } from "./middleware/loggerMiddleware";
+import { apiLimiter } from "./middleware/rateLimiter";
 
 dotenv.config();
 
@@ -23,6 +24,7 @@ app.use(cors({ origin: process.env.CORS_ORIGIN as string, credentials: true }));
 app.use(requestLogger);
 
 // Routes
+app.use("/api/", apiLimiter);
 app.use("/api/transactions", transactionRouter);
 app.use("/api/users", userRouter);
 app.use("/api/admin", adminRouter);
