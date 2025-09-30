@@ -14,34 +14,44 @@ router.get(
         req: Request & {
             query: {
                 page?: string;
-                user?: string;
+                userId?: string; // filter transactions where user is either sender or receiver
                 dateFrom?: string;
                 dateTo?: string;
-                totalFrom?: string;
-                totalTo?: string;
             };
         },
         res: Response
     ) => {
         try {
-            let { page = "1", user, dateFrom, dateTo, totalFrom, totalTo } = req.query;
+            let { page = "1", userId, dateFrom, dateTo } = req.query;
 
             const query: any = {};
 
-            if (user && mongoose.Types.ObjectId.isValid(user)) {
-                query.user = user;
+            // Validate user exists if userId is provided
+            if (userId) {
+                if (!mongoose.Types.ObjectId.isValid(userId)) {
+                    return res.status(400).json({
+                        status: "error",
+                        message: "Invalid userId",
+                    });
+                }
+
+                const userExists = await User.findById(userId);
+                if (!userExists) {
+                    return res.status(404).json({
+                        status: "error",
+                        message: "User not found",
+                    });
+                }
+
+                // Filter transactions where user is sender or receiver
+                query.$or = [{ fromUser: userId }, { toUser: userId }];
             }
 
+            // Filter by date range
             if (dateFrom || dateTo) {
                 query.date = {};
                 if (dateFrom) query.date.$gte = new Date(dateFrom);
                 if (dateTo) query.date.$lte = new Date(dateTo);
-            }
-
-            if (totalFrom || totalTo) {
-                query.total = {};
-                if (totalFrom) query.total.$gte = Number(totalFrom);
-                if (totalTo) query.total.$lte = Number(totalTo);
             }
 
             const perPage = 10;
@@ -49,12 +59,20 @@ router.get(
                 .sort({ date: -1 })
                 .skip((Number(page) - 1) * perPage)
                 .limit(perPage)
-                .populate("user", "name email");
+                .populate("fromUser", "name email")
+                .populate("toUser", "name email");
 
-            return httpResponse(200, "Transactions retrieved successfully", { transactions }, res);
+            res.status(200).json({
+                status: "success",
+                message: "Transactions retrieved successfully",
+                data: { transactions },
+            });
         } catch (error) {
-            console.error("Error getting transactions:", error);
-            return httpResponse(500, "Internal server error", {}, res);
+            console.error("Error fetching transactions:", error);
+            res.status(500).json({
+                status: "error",
+                message: "Internal server error",
+            });
         }
     }
 );
@@ -65,60 +83,82 @@ router.post(
     async (
         req: Request & {
             body: {
-                user: string;
+                fromUser: string;   // sender
+                toUser: string;     // receiver
                 total: number;
                 description: string;
                 date: string | Date;
                 business: string;
                 items: { title: string; quantity: number; price: number }[];
+                paymentMethod?: string;
             };
         },
         res: Response
     ) => {
         try {
-            const { user, total, description, date, business, items } = req.body;
+            const { fromUser, toUser, total, description, date, business, items, paymentMethod = "CASH" } = req.body;
 
-            // Basic validation
-            if (!user || !total || !description || !date || !business || !items) {
-                return httpResponse(400, "Missing required fields", {}, res);
+            // Validate required fields
+            if (!fromUser || !toUser || !total || !description || !date || !business || !items) {
+                return res.status(400).json({ status: "error", message: "Missing required fields" });
             }
 
-            if (!Number.isInteger(total)) {
-                return httpResponse(400, "Total must be a whole number (in INR)", {}, res);
+            // Validate ObjectId
+            if (!mongoose.Types.ObjectId.isValid(fromUser) || !mongoose.Types.ObjectId.isValid(toUser)) {
+                return res.status(400).json({ status: "error", message: "Invalid fromUser or toUser ID" });
             }
 
-            if (!Array.isArray(items) || items.some((i) => !i.title || !i.quantity || !i.price)) {
-                return httpResponse(400, "Items must have title, quantity, and price", {}, res);
+            if (!Number.isInteger(total) || total <= 0) {
+                return res.status(400).json({ status: "error", message: "Total must be a positive whole number" });
             }
 
-            // Validate user exists
-            const userDoc = await User.findById(user);
-            if (!userDoc) {
-                return httpResponse(400, "User not found", {}, res);
+            if (!Array.isArray(items) || items.some(i => !i.title || !i.quantity || !i.price)) {
+                return res.status(400).json({ status: "error", message: "Items must have title, quantity, and price" });
             }
+
+            // Fetch sender and receiver
+            const sender = await User.findById(fromUser);
+            const receiver = await User.findById(toUser);
+
+            if (!sender || !receiver) {
+                return res.status(404).json({ status: "error", message: "Sender or receiver not found" });
+            }
+
+            // Check sender balance
+            if (sender.balance < total) {
+                return res.status(400).json({ status: "error", message: "Insufficient balance" });
+            }
+
+            // Update balances
+            sender.balance -= total;
+            receiver.balance += total;
+
+            await sender.save();
+            await receiver.save();
 
             // Create transaction
-            const transactionDoc = new Transaction({
-                user,
+            const transaction = new Transaction({
+                fromUser,
+                toUser,
                 total,
                 description,
                 date: new Date(date),
                 business,
                 items,
+                paymentMethod,
+                status: "PAID"
             });
 
-            await transactionDoc.save();
+            await transaction.save();
 
-            // Update user's balance
-            userDoc.balance += total;
-            await userDoc.save();
+            return res.status(201).json({ status: "success", message: "Transaction completed successfully", data: { transaction } });
 
-            return httpResponse(201, "Transaction created successfully", { transaction: transactionDoc }, res);
         } catch (error) {
             console.error("Error creating transaction:", error);
-            return httpResponse(500, "Internal server error", {}, res);
+            return res.status(500).json({ status: "error", message: "Internal server error" });
         }
     }
 );
+
 
 export default router;
