@@ -9,10 +9,11 @@ export interface Item {
 }
 
 export interface Transaction extends Document {
+    fromUser: ObjectId;       // sender
+    toUser: ObjectId;
     description: string;
     total: number;      // total amount in INR
-    date: Date;
-    user: ObjectId;     // reference to user
+    date: Date; 
     business: string;
     items: Item[];
     paymentMethod?: "CASH" | "CARD" | "UPI" | "OTHER";
@@ -21,10 +22,11 @@ export interface Transaction extends Document {
 
 // Mongoose Schema
 const TransactionSchema: Schema<Transaction> = new Schema({
+    fromUser: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    toUser: { type: Schema.Types.ObjectId, ref: "User", required: true },
     description: { type: String, required: true },
     total: { type: Number, required: true }, // store amount in INR
-    date: { type: Date, required: true, default: Date.now },
-    user: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    date: { type: Date, required: true, default: Date.now }, 
     business: { type: String, required: true },
     items: [
         {
