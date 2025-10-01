@@ -3,6 +3,7 @@ import express, { Request, Response } from "express";
 import User from "../models/user";
 import { httpResponse } from "../lib/httpResponse";
 import mongoose from "mongoose";
+import { generateToken } from "../lib/jwt";
 
 const router = express.Router();
 
@@ -58,14 +59,17 @@ router.post("/register", async (req: Request, res: Response) => {
         if (existingUser) return httpResponse(400, "Email already registered", {}, res);
 
         const newUser = new User({ name, email, balance, sampatirli, color });
-        newUser.setPassword(password); // sets passwordHash & passwordSalt
+        newUser.setPassword(password);
 
         await newUser.save();
 
-        // Remove sensitive info before sending response
+        // Prepare safe user object
         const { passwordHash, passwordSalt, ...safeUser } = newUser.toObject();
 
-        return httpResponse(201, "User registered successfully", { user: safeUser }, res);
+        // Generate JWT (with userId + email as payload)
+        const token = generateToken({ id: newUser._id, email: newUser.email });
+
+        return httpResponse(201, "User registered successfully", { user: safeUser, token }, res);
     } catch (error) {
         console.error("Error registering user:", error);
         return httpResponse(500, "Internal server error", {}, res);
